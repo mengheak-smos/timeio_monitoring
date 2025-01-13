@@ -1,6 +1,6 @@
 import os
 import requests
-from datetime import date , datetime
+from datetime import date, datetime, timedelta
 import configparser
 
 # Load configuration
@@ -17,7 +17,7 @@ HOST_NAMES = list(HOSTS.keys())
 
 # State tracking
 last_status = {ip: None for ip in PC_IP}
-timeout_counter = {ip: 0 for ip in PC_IP}
+last_seen = {ip: datetime.now() for ip in PC_IP}
 
 def send_telegram_notification(message):
     """Sends a notification to Telegram."""
@@ -54,22 +54,21 @@ while True:
         online_status = is_device_online(ip)
                 
         DEVICE_LOCATION = get_device_info(ip).upper()
-
-        CURRENT_DATE =  date.today().strftime('%B %d, %Y')
-        CURRENT_TIME =  datetime.now().strftime('%H:%M:%S %p')
+        CURRENT_DATE = date.today().strftime('%B %d, %Y')
+        CURRENT_TIME = datetime.now().strftime('%H:%M:%S %p')
 
         if online_status:
-            if timeout_counter[ip] > 0:
-                timeout_counter[ip] = 0
-
-            if online_status != last_status[ip]:
+            # Device is online
+            if last_status[ip] != True:
                 MESSAGE = f"🚨TimeIO Notification Alert🚨\n\nLocation: {DEVICE_LOCATION}\nIP: {ip}\nDate: {CURRENT_DATE}\nTime: {CURRENT_TIME}"
                 send_telegram_notification(f"{MESSAGE}\nStatus: UP! 📶✅\n")
-                last_status[ip] = online_status        
+                last_status[ip] = True
+            # Update last seen timestamp
+            last_seen[ip] = datetime.now()
         else:
-            timeout_counter[ip] += 1
-
-            if timeout_counter[ip] == 5:
+            # Device is offline
+            elapsed_time = datetime.now() - last_seen[ip]
+            if elapsed_time > timedelta(minutes=1) and last_status[ip] != False:
                 MESSAGE = f"🚨TimeIO Notification Alert🚨\n\nLocation: {DEVICE_LOCATION}\nIP: {ip}\nDate: {CURRENT_DATE}\nTime: {CURRENT_TIME}"
                 send_telegram_notification(f"{MESSAGE}\nStatus: DOWN! ❌❌\n")
-                last_status[ip] = online_status
+                last_status[ip] = False
